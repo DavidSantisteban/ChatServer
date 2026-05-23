@@ -1,122 +1,101 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect, useRef } from "react";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [historial, setHistorial]         = useState({ general: [] });
+  const [texto, setTexto]                 = useState("");
+  const [nombre, setNombre]               = useState("");
+  const [conectado, setConectado]         = useState(false);
+  const [esperaNombre, setEsperaNombre]   = useState(false);
+  const [usuarios, setUsuarios]           = useState([]);
+  const [chat, setChat]                   = useState("general");
+  const [servidorCaido, setServidorCaido] = useState(false);
+  const ws  = useRef(null);
+  const fin = useRef(null);
+
+  const agregar = (conv, msg) =>
+    setHistorial(h => ({ ...h, [conv]: [...(h[conv] || []), msg] }));
+
+  useEffect(() => {
+    ws.current = new WebSocket("ws://localhost:12345");
+
+    ws.current.onmessage = ({ data }) => {
+      if (data === "SOLICITAR_NOMBRE")          { setEsperaNombre(true); return; }
+      if (data.startsWith("USUARIOS:"))         { setUsuarios(data.replace("USUARIOS:", "").split(",").filter(Boolean)); return; }
+      if (data.startsWith("[Privado] "))        { agregar(data.match(/\[Privado\] (.+?):/)?.[1], data); return; }
+      if (data.startsWith("[Privado a "))       { agregar(data.match(/\[Privado a (.+?)\]/)?.[1], data); return; }
+      agregar("general", data);
+    };
+
+    ws.current.onopen  = () => setServidorCaido(false);
+    ws.current.onclose = () => { setConectado(false); setServidorCaido(true); };
+    ws.current.onerror = () => setServidorCaido(true);
+
+    return () => ws.current.close();
+  }, []);
+
+  useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth" }); }, [historial, chat]);
+
+  const enviarNombre = () => {
+    if (!nombre.trim()) return;
+    ws.current.send(nombre.trim());
+    setEsperaNombre(false);
+    setConectado(true);
+  };
+
+  const enviarMensaje = () => {
+    if (!texto.trim()) return;
+    ws.current.send(chat === "general" ? texto : `PRIVADO:${chat}:${texto}`);
+    setTexto("");
+  };
+
+  if (servidorCaido) return (
+    <div className="centro">
+      <p>⚠️ Servidor desconectado</p>
+      <button onClick={() => window.location.reload()}>Reintentar</button>
+    </div>
+  );
+
+  if (esperaNombre) return (
+    <div className="centro">
+      <p>Ingresa tu nombre</p>
+      <input value={nombre} onChange={e => setNombre(e.target.value)}
+             onKeyDown={e => e.key === "Enter" && enviarNombre()} autoFocus />
+      <button onClick={enviarNombre}>Entrar</button>
+    </div>
+  );
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {/* Lista de conversaciones */}
+      <div className="panel">
+        <p className="panel-titulo">Chats</p>
+        <div onClick={() => setChat("general")} className={chat === "general" ? "item activo" : "item"}>
+          General
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {usuarios.filter(u => u !== nombre).map(u => (
+          <div key={u} onClick={() => setChat(u)} className={chat === u ? "item activo" : "item"}>
+            {u}
+          </div>
+        ))}
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Ventana del chat */}
+      <div className="chat">
+        <div className="mensajes">
+          {(historial[chat] || []).map((m, i) => <p key={i}>{m}</p>)}
+          <div ref={fin} />
+        </div>
+        <p className="subtitulo">{chat === "general" ? "General" : `Privado: ${chat}`}</p>
+        <div className="envio">
+          <input value={texto} onChange={e => setTexto(e.target.value)}
+                 onKeyDown={e => e.key === "Enter" && enviarMensaje()}
+                 disabled={!conectado} placeholder="Mensaje..." />
+          <button onClick={enviarMensaje} disabled={!conectado}>Enviar</button>
+        </div>
+      </div>
+
+    </div>
+  );
 }
-
-export default App
