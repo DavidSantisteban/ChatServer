@@ -1,101 +1,66 @@
-
-
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.net.Socket;
 import java.util.List;
-import javax.swing.JTextArea;
-import javax.swing.SwingUtilities;
+import java.util.Map;
+import org.java_websocket.WebSocket;
 
-public class ManejadorCliente implements Runnable {
+// CAMBIO: ya no implementa Runnable, no hay hilos manuales ni DataInputStream/DataOutputStream
+// CAMBIO: se elimino JTextArea y SwingUtilities, el servidor imprime en consola directamente
+// CAMBIO: se agrego enviarPrivado() para mensajes privados
+// CAMBIO: se agrego el mapa clientes para buscar usuarios por nombre
+public class ManejadorCliente {
 
-    private final Socket socket;
-    private final JTextArea pantalla;
+    private final WebSocket conn;
     private final PublishSubject<String> canal;
     private final List<Disposable> subs;
-    private DataInputStream dis;
-    private DataOutputStream dos;
-    private String nombre = "Anonimo";
+    private final String nombre;
+    private final Map<String, ManejadorCliente> clientes;
     private Disposable subscription;
 
-    public ManejadorCliente(
-            Socket socket,
-            JTextArea pantalla,
-            PublishSubject<String> canal, // <- Actua como Observer y Observable
-            List<Disposable> subs
-    ) {
-        this.socket = socket;
-        this.pantalla = pantalla;
-        this.canal = canal;
-        this.subs = subs;
+    public ManejadorCliente(WebSocket conn, PublishSubject<String> canal,
+                            List<Disposable> subs, String nombre,
+                            Map<String, ManejadorCliente> clientes) {
+        this.conn     = conn;
+        this.canal    = canal;
+        this.subs     = subs;
+        this.nombre   = nombre;
+        this.clientes = clientes;
     }
 
-    @Override
-    public void run() {
-        try {
-            dis = new DataInputStream(socket.getInputStream());
-            dos = new DataOutputStream(socket.getOutputStream());
+    public void conectar() {
+        canal.onNext(">> " + nombre + " entro al chat");
+        // Se suscribe al canal general para recibir todos los mensajes
+        subscription = canal.subscribe(this::enviar, err -> {});
+        subs.add(subscription);
+    }
 
-            dos.writeUTF("SOLICITAR_NOMBRE");
-            nombre = dis.readUTF().trim();
-            if (nombre.isEmpty()) nombre = "Anonimo";
+    public void recibirMensaje(String msg) {
+        // Mete el mensaje al canal, todos los suscritos lo reciben
+        canal.onNext(nombre + ": " + msg);
+    }
 
-            agregarInterfaz(nombre + " se conecto.\n");
-
-            // Canal Actua como Observer, porque esta recibiendo datos
-            // Observer: el que recibe y procesa.
-
-            canal.onNext(">> " + nombre + " entro al chat"); // canal.onNext() -> Observer
-
-            // Canal Actua como Observable ya que cada vez que se emite un mensaje cada vez que
-            // se haga un enviar(msg) a los clientes que estan suscritos
-            subscription = canal.subscribe(msg -> enviar(msg), err -> {});
-
-            subs.add(subscription);
-
-            // Aca lee los mensajes de los clientes y los envia
-            while (true) {
-                // METIENDO DATOS AL CANAL
-                // Canal sigue siendo Observer, Emite el mensaje al canal
-
-                //dis.readUTF(); Lee el mensaje enviado desde ClienteChat.java y lo envia a los canales
-                String msg = dis.readUTF();
-                if (msg.equalsIgnoreCase("/salir")) break;
-
-                canal.onNext(nombre + ": " + msg);
-                agregarInterfaz(nombre + ": " + msg + "\n");
-            }
-        } catch (IOException e) {
-        } finally {
-            cleanup();
+    // NUEVO: busca al destinatario en el mapa y le envia el mensaje directamente
+    public void enviarPrivado(String destinatario, String contenido) {
+        ManejadorCliente dest = clientes.get(destinatario);
+        if (dest != null) {
+            dest.enviar("[Privado] " + nombre + ": " + contenido);
+            enviar("[Privado a " + destinatario + "] " + contenido); // confirmacion al remitente
+        } else {
+            enviar(">> Usuario '" + destinatario + "' no encontrado.");
         }
     }
 
-    private void cleanup() {
+    public void desconectar() {
         canal.onNext(">> " + nombre + " salio del chat");
-        agregarInterfaz(nombre + " se desconecto.\n");
-
-        // Cancelar suscripcion y limpiar de la lista del servidor
         if (subscription != null && !subscription.isDisposed()) {
             subscription.dispose();
             subs.remove(subscription);
         }
-
-        try {
-            if (socket != null) socket.close();
-        } catch (IOException ignored) {}
     }
 
-    void enviar(String mensaje) {
-        try {
-            if (dos != null) dos.writeUTF(mensaje);
-        } catch (IOException ignored) {}
-    }
+    public String getNombre() { return nombre; }
 
-    private void agregarInterfaz(String text) {
-        SwingUtilities.invokeLater(() -> pantalla.append(text));
+    public void enviar(String mensaje) {
+        if (conn.isOpen()) conn.send(mensaje);
     }
 }
