@@ -17,9 +17,7 @@ public class ManejadorCliente {
     private final Map<String, ManejadorCliente> clientes;
     private Disposable subscription;
 
-    public ManejadorCliente(WebSocket conn, PublishSubject<String> canal,
-                            List<Disposable> subs, String nombre,
-                            Map<String, ManejadorCliente> clientes) {
+    public ManejadorCliente(WebSocket conn, PublishSubject<String> canal, List<Disposable> subs, String nombre, Map<String, ManejadorCliente> clientes) {
         this.conn     = conn;
         this.canal    = canal;
         this.subs     = subs;

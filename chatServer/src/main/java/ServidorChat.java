@@ -10,9 +10,6 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
-// CAMBIO: ya no extiende JFrame, ahora extiende WebSocketServer
-// CAMBIO: se elimino todo lo de Swing (JTextArea, pantalla, SwingUtilities)
-// CAMBIO: se agrego el mapa 'clientes' para mensajes privados y lista de usuarios
 public class ServidorChat extends WebSocketServer {
 
     static final int PUERTO = 12345;
@@ -20,46 +17,62 @@ public class ServidorChat extends WebSocketServer {
     final PublishSubject<String> canal = PublishSubject.create();
     final List<Disposable> subs = Collections.synchronizedList(new ArrayList<>());
 
-    // NUEVO: mapa nombre -> manejador, para buscar a quien mandar un privado
+    // Map -> Guarda informacion en pares
+    //"David"   -> ManejadorCliente@1
+    //"Juan"    -> ManejadorCliente@2
+    // "Ana"     -> ManejadorCliente@3
     final Map<String, ManejadorCliente> clientes = new ConcurrentHashMap<>();
+    // Se implementa con ConcurrentHashMap para evitar problemas cuando varios clientes se conectan o se
+    // desconectan al mismo tiempo
 
+    // InetSocketAddress equivalente al Server Socket, inicializa el servidor con una direccion ip y un puerto
     public ServidorChat() {
         super(new InetSocketAddress(PUERTO));
     }
 
+    // Cuando un Cliente se conecta
+    // conn -> conexion con cliente en especifico, send reemplaza a dos.writeUTF
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
         conn.send("SOLICITAR_NOMBRE"); // pide el nombre al cliente que entro
     }
 
+    // Cuando llega un mensaje
     @Override
     public void onMessage(WebSocket conn, String mensaje) {
+
+        // Obtiene el manejador asociado al cliente, tiene las funciones de enviar los mensajes
         ManejadorCliente mc = conn.getAttachment();
 
-        // Primer mensaje que llega = el nombre del cliente
+        // Situacion 1: el cliente aun no tiene nombre
         if (mc == null) {
             String nombre = mensaje.trim().isEmpty() ? "Anonimo" : mensaje.trim();
-            if (clientes.containsKey(nombre)) nombre = nombre + "_" + (clientes.size() + 1);
+
+            // Si el nombre ya existe, le agrega un numero al final para evitar duplicados
+            if (clientes.containsKey(nombre))
+                nombre = nombre + "_" + (clientes.size() + 1);
 
             ManejadorCliente nuevoMc = new ManejadorCliente(conn, canal, subs, nombre, clientes);
-            conn.setAttachment(nuevoMc);
+            conn.setAttachment(nuevoMc); // Asocia la conexion con el cliente
             clientes.put(nombre, nuevoMc);
-            nuevoMc.conectar();
+            nuevoMc.conectar(); // Suscribe al cliente para que le lleguen los mensajes
 
             // Avisa a todos la lista actualizada de usuarios
             broadcast("USUARIOS:" + String.join(",", clientes.keySet()));
             return;
         }
 
-        // NUEVO: mensaje privado con formato "PRIVADO:destinatario:contenido"
+       // MENSAJE PRIVADO
         if (mensaje.startsWith("PRIVADO:")) {
             String[] p = mensaje.split(":", 3);
-            if (p.length == 3) mc.enviarPrivado(p[1], p[2]);
+            if (p.length == 3)
+                mc.enviarPrivado(p[1], p[2]);
             return;
         }
 
-        // Mensaje normal al canal general
+        // MENSAJE GENERAL
         if (mensaje.equalsIgnoreCase("/salir")) {
+            // Si el cliente EXPLICITAMENTE escribe /salir, se elimina del map y de la lista de suscripciones
             mc.desconectar();
             clientes.remove(mc.getNombre());
             broadcast("USUARIOS:" + String.join(",", clientes.keySet()));
@@ -69,6 +82,7 @@ public class ServidorChat extends WebSocketServer {
         }
     }
 
+    // Si el cliente se desconecta sin usar /salir
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         ManejadorCliente mc = conn.getAttachment();
@@ -90,7 +104,6 @@ public class ServidorChat extends WebSocketServer {
     }
 
     public static void main(String[] args) throws Exception {
-        // CAMBIO: ya no usa SwingUtilities, simplemente arranca el servidor
         new ServidorChat().start();
     }
 }
