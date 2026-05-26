@@ -84,31 +84,36 @@ export default function App() {
     setTexto("");
   };
 
+  // Tres Pantallas Posibles
+
+  //Servidor Caido
   if (servidorCaido)
     return (
       <div className="centro">
-        <p>⚠️ Servidor desconectado</p>
+        <p>Servidor desconectado</p>
         <button onClick={() => window.location.reload()}>Reintentar</button>
       </div>
     );
 
+  // Ingresar Nombre
   if (esperaNombre)
     return (
       <div className="centro">
         <p>Ingresa tu nombre</p>
         <input
           value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && enviarNombre()}
+          onChange={(e) => setNombre(e.target.value)} // Cada tecla actualiza el react
+          onKeyDown={(e) => e.key === "Enter" && enviarNombre()} // Enviar con tecla Enter
           autoFocus
         />
         <button onClick={enviarNombre}>Entrar</button>
       </div>
     );
 
+  // Chat principal
   return (
     <div className="app">
-      {/* Lista de conversaciones */}
+      {/* Lista de conversaciones Izquierda */}
       <div className="panel">
         <p className="panel-titulo">Chats</p>
         <div
@@ -130,7 +135,7 @@ export default function App() {
           ))}
       </div>
 
-      {/* Ventana del chat */}
+      {/* Ventana del chat panel central */}
       <div className="chat">
         <div className="mensajes">
           {(historial[chat] || []).map((m, i) => (
