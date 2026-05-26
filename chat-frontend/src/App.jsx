@@ -60,6 +60,7 @@ export default function App() {
       agregar("general", data);
     };
 
+    // Eventos, si es onclose y oneerror, activan servidor caido, react muestra pantalla de aviso
     ws.current.onopen = () => setServidorCaido(false);
     ws.current.onclose = () => {
       setConectado(false);
@@ -69,10 +70,6 @@ export default function App() {
 
     return () => ws.current.close();
   }, []);
-
-  useEffect(() => {
-    fin.current?.scrollIntoView({ behavior: "smooth" });
-  }, [historial, chat]);
 
   const enviarNombre = () => {
     if (!nombre.trim()) return;
