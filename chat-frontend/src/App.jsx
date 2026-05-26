@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"; // Hooks -> funcionales esp
 import "./App.css";
 
 export default function App() {
-  // use state guarda valores y cambia lo que se ve en pantalla
   const [historial, setHistorial] = useState({ general: [] });
   //     ^valor        ^función         ^valor inicial
   const [texto, setTexto] = useState("");
@@ -17,7 +16,6 @@ export default function App() {
   const ws = useRef(null); // -> conexion websocket
   const fin = useRef(null);
 
-  // Variable que guarda una funcion lambda
   // conv especifica de que conversacion si de la global o de las privadas
   const agregar = (conv, msg) => {
     setHistorial((historialActual) => {
@@ -69,10 +67,6 @@ export default function App() {
 
     return () => ws.current.close();
   }, []);
-
-  useEffect(() => {
-    fin.current?.scrollIntoView({ behavior: "smooth" });
-  }, [historial, chat]);
 
   const enviarNombre = () => {
     if (!nombre.trim()) return;
